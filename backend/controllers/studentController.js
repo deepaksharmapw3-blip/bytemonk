@@ -200,4 +200,20 @@ async function exportStudents(_req, res) {
   return res.send(`\uFEFF${lines.join('\r\n')}`)
 }
 
-module.exports = { exportStudents, getAnalytics, getStudents, registerStudent, validateRegistration }
+async function deleteStudent(req, res) {
+  const id = typeof req.params.id === 'string' ? req.params.id : ''
+  if (!/^[a-f\d]{24}$/i.test(id)) {
+    return res.status(400).json({ message: 'Invalid registration id.' })
+  }
+
+  const deleted = await Student.findByIdAndDelete(id).select('_id').lean()
+  if (!deleted) {
+    return res.status(404).json({ message: 'Registration not found. It may already have been deleted.' })
+  }
+
+  console.log(`Registration ${id} deleted by ${req.admin?.name || 'unknown admin'}`)
+  res.set('Cache-Control', 'no-store')
+  return res.json({ success: true, id })
+}
+
+module.exports = { deleteStudent, exportStudents, getAnalytics, getStudents, registerStudent, validateRegistration }

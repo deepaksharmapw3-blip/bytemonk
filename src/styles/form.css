@@ -1,1 +1,28 @@
-.form-server-error{display:flex;align-items:flex-start;gap:9px;margin:0 0 22px;padding:12px 14px;border:1px solid rgba(240,155,170,.34);border-radius:7px;background:rgba(117,39,58,.16);color:#f0a4b3;font-size:11px;line-height:1.55}.form-server-error svg{flex:none;margin-top:1px}
+.form-server-error {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  margin: 0 0 22px;
+  padding: 12px 14px;
+  border: 1px solid rgba(240, 155, 170, .34);
+  border-radius: 7px;
+  background: rgba(117, 39, 58, .16);
+  color: #f0a4b3;
+  font-size: 11px;
+  line-height: 1.55;
+}
+
+.form-server-error svg {
+  flex: none;
+  margin-top: 1px;
+}
+
+.consent-control a {
+  color: #b5a9ff;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.consent-control a:hover {
+  color: #d9d2ff;
+}

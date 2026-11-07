@@ -12,6 +12,6 @@ export function SiteHeader() {
 }
 
 export function Footer() {
-  return <footer className="site-footer"><div className="footer-inner"><Brand light/><p>Curiosity, shared. Skills, sharpened.</p><Link className="footer-admin-link" to="/admin">Organizer dashboard <ArrowUpRight size={12}/></Link><span>© 2026 ByteMonk · Built for curious minds</span></div></footer>
+  return <footer className="site-footer"><div className="footer-inner"><Brand light/><p>Curiosity, shared. Skills, sharpened.</p><Link className="footer-link" to="/privacy">Privacy</Link><Link className="footer-admin-link" to="/admin">Organizer dashboard <ArrowUpRight size={12}/></Link><span>© 2026 ByteMonk · Built for curious minds</span></div></footer>
 }
 

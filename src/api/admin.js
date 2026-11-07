@@ -2,24 +2,34 @@ import axios from 'axios'
 
 const apiBase = import.meta.env.VITE_API_URL || 'http://localhost:5000/api'
 
-function adminConfig(key, extra = {}) {
+export async function adminLogin(key) {
+  const { data } = await axios.post(`${apiBase}/admin/login`, { key })
+  return data
+}
+
+function adminConfig(token, extra = {}) {
   return {
     ...extra,
-    headers: { ...extra.headers, Authorization: `Bearer ${key}` },
+    headers: { ...extra.headers, Authorization: `Bearer ${token}` },
   }
 }
 
-export async function getAdminAnalytics(key) {
-  const { data } = await axios.get(`${apiBase}/students/analytics`, adminConfig(key))
+export async function getAdminAnalytics(token) {
+  const { data } = await axios.get(`${apiBase}/students/analytics`, adminConfig(token))
   return data
 }
 
-export async function getStudentRegistrations(key, params) {
-  const { data } = await axios.get(`${apiBase}/students`, adminConfig(key, { params }))
+export async function getStudentRegistrations(token, params) {
+  const { data } = await axios.get(`${apiBase}/students`, adminConfig(token, { params }))
   return data
 }
 
-export async function downloadStudentExport(key) {
-  const { data } = await axios.get(`${apiBase}/students/export`, adminConfig(key, { responseType: 'blob' }))
+export async function downloadStudentExport(token) {
+  const { data } = await axios.get(`${apiBase}/students/export`, adminConfig(token, { responseType: 'blob' }))
+  return data
+}
+
+export async function deleteStudentRegistration(token, id) {
+  const { data } = await axios.delete(`${apiBase}/students/${encodeURIComponent(id)}`, adminConfig(token))
   return data
 }

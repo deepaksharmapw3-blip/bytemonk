@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Bar, BarChart, CartesianGrid, Cell, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
-import { Activity, ArrowDownToLine, ArrowLeft, BarChart3, Building2, CalendarClock, ChevronLeft, ChevronRight, Download, KeyRound, LogOut, RefreshCw, Search, ShieldCheck, Sparkles, Users } from 'lucide-react'
+import { Activity, ArrowDownToLine, ArrowLeft, BarChart3, Building2, CalendarClock, ChevronLeft, ChevronRight, Download, KeyRound, LogOut, RefreshCw, Search, ShieldCheck, Sparkles, Trash2, Users } from 'lucide-react'
 import { Footer, SiteHeader } from '../components/SiteChrome.jsx'
-import { downloadStudentExport, getAdminAnalytics, getStudentRegistrations } from '../api/admin.js'
+import { adminLogin, deleteStudentRegistration, downloadStudentExport, getAdminAnalytics, getStudentRegistrations } from '../api/admin.js'
 import '../styles/admin.css'
 
 const chartColors = ['#9b87ff', '#61c8db', '#efa1d8', '#f1c46f', '#79d5a4', '#81a8ff', '#ff9a78', '#b6a0f0']
@@ -23,7 +23,7 @@ function EmptyChart({ children = 'Registration data will appear here as students
 }
 
 function LoginGate({ value, onChange, onSubmit, error, loading }) {
-  return <div className="admin-gate-wrap"><form className="admin-gate" onSubmit={onSubmit}><div className="admin-gate-icon"><KeyRound size={22}/></div><span className="admin-overline">BYTE MONK · ORGANIZERS</span><h1>Good to see you.</h1><p>Enter your organizer access key to review registrations and community trends.</p>{error && <div className="admin-alert" role="alert">{error}</div>}<label htmlFor="admin-key">Admin access key</label><input id="admin-key" type="password" autoComplete="current-password" value={value} onChange={event => onChange(event.target.value)} placeholder="Paste your private admin key" required/><button type="submit" className="button-primary" disabled={loading}>{loading ? <><span className="spinner"/>Verifying access…</> : <>Open dashboard <ArrowDownToLine size={16}/></>}</button><span className="admin-gate-note"><ShieldCheck size={14}/> Key is held in memory only and cleared when you leave.</span></form></div>
+  return <div className="admin-gate-wrap"><form className="admin-gate" onSubmit={onSubmit}><div className="admin-gate-icon"><KeyRound size={22}/></div><span className="admin-overline">BYTE MONK · ORGANIZERS</span><h1>Good to see you.</h1><p>Enter your organizer access key to review registrations and community trends.</p>{error && <div className="admin-alert" role="alert">{error}</div>}<label htmlFor="admin-key">Admin access key</label><input id="admin-key" type="password" autoComplete="current-password" value={value} onChange={event => onChange(event.target.value)} placeholder="Paste your private admin key" required/><button type="submit" className="button-primary" disabled={loading}>{loading ? <><span className="spinner"/>Verifying access…</> : <>Open dashboard <ArrowDownToLine size={16}/></>}</button><span className="admin-gate-note"><ShieldCheck size={14}/> Your key is sent once to sign in. Only a short-lived session is kept in memory.</span></form></div>
 }
 
 function SkillMix({ levels = [], total = 0 }) {
@@ -33,7 +33,11 @@ function SkillMix({ levels = [], total = 0 }) {
 
 function AdminDashboard() {
   const [keyInput, setKeyInput] = useState('')
-  const [adminKey, setAdminKey] = useState('')
+  const [adminToken, setAdminToken] = useState('')
+  const [signingIn, setSigningIn] = useState(false)
+  const [pendingDeleteId, setPendingDeleteId] = useState('')
+  const [deletingId, setDeletingId] = useState('')
+  const [refreshTick, setRefreshTick] = useState(0)
   const [authError, setAuthError] = useState('')
   const [analytics, setAnalytics] = useState(null)
   const [students, setStudents] = useState([])
@@ -46,13 +50,13 @@ function AdminDashboard() {
   const [exporting, setExporting] = useState(false)
 
   useEffect(() => {
-    if (!adminKey) return undefined
+    if (!adminToken) return undefined
     let current = true
     setLoading(true)
     setError('')
     Promise.all([
-      getAdminAnalytics(adminKey),
-      getStudentRegistrations(adminKey, { ...filters, page, limit: 25 }),
+      getAdminAnalytics(adminToken),
+      getStudentRegistrations(adminToken, { ...filters, page, limit: 25 }),
     ]).then(([nextAnalytics, result]) => {
       if (!current) return
       setAnalytics(nextAnalytics)
@@ -63,8 +67,8 @@ function AdminDashboard() {
       if (!current) return
       const status = requestError.response?.status
       if (status === 401 || status === 503) {
-        setAuthError(status === 401 ? 'That key was not accepted. Check backend/.env and try again.' : 'Admin access is not configured on the backend yet.')
-        setAdminKey('')
+        setAuthError(status === 401 ? 'Your session has expired. Please sign in again.' : 'Admin access is not configured on the backend yet.')
+        setAdminToken('')
         setAnalytics(null)
         setStudents([])
         return
@@ -72,7 +76,7 @@ function AdminDashboard() {
       setError(requestError.response?.data?.message || 'The dashboard could not reach the API. Make sure the backend and MongoDB are running.')
     }).finally(() => { if (current) setLoading(false) })
     return () => { current = false }
-  }, [adminKey, filters, page])
+  }, [adminToken, filters, page, refreshTick])
 
   const analyticsData = analytics || emptyAnalytics
   const departmentChartData = useMemo(() => {
@@ -90,18 +94,33 @@ function AdminDashboard() {
     })
   }, [analyticsData])
 
-  const handleLogin = event => {
+  const handleLogin = async event => {
     event.preventDefault()
     const key = keyInput.trim()
-    if (!key) return
+    if (!key || signingIn) return
     setAuthError('')
     setAnalytics(null)
-    setAdminKey(key)
-    setKeyInput('')
+    setSigningIn(true)
+    try {
+      const { token } = await adminLogin(key)
+      setKeyInput('')
+      setAdminToken(token)
+    } catch (loginError) {
+      const status = loginError.response?.status
+      if (status === 401) setAuthError('That key was not accepted.')
+      else if (status === 429) {
+        const seconds = Number(loginError.response?.data?.retryAfterSeconds)
+        const minutes = Number.isFinite(seconds) && seconds > 0 ? Math.ceil(seconds / 60) : null
+        setAuthError(minutes ? `Too many attempts. Try again in about ${minutes} minute${minutes === 1 ? '' : 's'}.` : 'Too many attempts. Please try again later.')
+      } else if (status === 503) setAuthError('Admin access is not configured on the backend yet.')
+      else setAuthError('Could not reach the API. Make sure the backend is running.')
+    } finally {
+      setSigningIn(false)
+    }
   }
 
   const logout = () => {
-    setAdminKey('')
+    setAdminToken('')
     setAnalytics(null)
     setStudents([])
     setPagination({ page: 1, limit: 25, total: 0, pages: 0 })
@@ -124,11 +143,37 @@ function AdminDashboard() {
     setPage(1)
   }
 
+  const removeStudent = async id => {
+    setDeletingId(id)
+    setError('')
+    try {
+      await deleteStudentRegistration(adminToken, id)
+      setPendingDeleteId('')
+      if (students.length === 1 && page > 1) setPage(page - 1)
+      setRefreshTick(tick => tick + 1)
+    } catch (deleteError) {
+      const status = deleteError.response?.status
+      if (status === 401) {
+        logout()
+        setAuthError('Your session has expired. Please sign in again.')
+        return
+      }
+      if (status === 404) {
+        setPendingDeleteId('')
+        setRefreshTick(tick => tick + 1)
+        return
+      }
+      setError('The registration could not be deleted. Please try again.')
+    } finally {
+      setDeletingId('')
+    }
+  }
+
   const exportCsv = async () => {
     setExporting(true)
     setError('')
     try {
-      const blob = await downloadStudentExport(adminKey)
+      const blob = await downloadStudentExport(adminToken)
       const url = URL.createObjectURL(blob)
       const link = document.createElement('a')
       link.href = url
@@ -151,7 +196,7 @@ function AdminDashboard() {
   }
 
   return <><SiteHeader/><main className="admin-page">
-    {!adminKey ? <LoginGate value={keyInput} onChange={setKeyInput} onSubmit={handleLogin} error={authError} loading={loading}/> : <div className="admin-shell">
+    {!adminToken ? <LoginGate value={keyInput} onChange={setKeyInput} onSubmit={handleLogin} error={authError} loading={signingIn}/> : <div className="admin-shell">
       <div className="admin-toolbar"><div><span className="admin-overline"><span className="admin-live-dot"/> ORGANIZER CONSOLE</span><h1>Community overview</h1><p>Student interest, at a glance.</p></div><div className="admin-toolbar-actions"><span className="admin-secure-label"><ShieldCheck size={14}/> Protected workspace</span><button className="admin-icon-button" onClick={refresh} aria-label="Refresh dashboard" title="Refresh"><RefreshCw size={16}/></button><button className="admin-logout" onClick={logout}><LogOut size={15}/> Sign out</button></div></div>
       {error && <div className="admin-alert" role="alert">{error}</div>}
       {loading && !analytics ? <div className="admin-loading"><span className="spinner"/>Loading your dashboard…</div> : <>
@@ -186,7 +231,9 @@ function AdminDashboard() {
 
         <section className="admin-panel student-panel"><div className="admin-panel-heading student-heading"><div><span>REGISTRATION RECORDS</span><h2>Student management</h2></div><button className="admin-export-button" onClick={exportCsv} disabled={exporting || !analyticsData.totalStudents}>{exporting ? <span className="spinner"/> : <Download size={15}/>} Export CSV</button></div>
           <form className="student-filters" onSubmit={applyFilters}><label className="admin-search"><Search size={15}/><input aria-label="Search by name or email" placeholder="Search name or email" value={draftFilters.search} onChange={event => setDraftFilters(filters => ({ ...filters, search: event.target.value }))}/></label><select aria-label="Filter by department" value={draftFilters.department} onChange={event => setDraftFilters(filters => ({ ...filters, department: event.target.value }))}><option value="">All departments</option>{analyticsData.departments.map(department => <option key={department}>{department}</option>)}</select><select aria-label="Filter by year" value={draftFilters.year} onChange={event => setDraftFilters(filters => ({ ...filters, year: event.target.value }))}><option value="">All years</option>{analyticsData.years.map(item => <option key={item.year}>{item.year}</option>)}</select><select aria-label="Filter by interest" value={draftFilters.interest} onChange={event => setDraftFilters(filters => ({ ...filters, interest: event.target.value }))}><option value="">All interests</option>{analyticsData.interests.map(item => <option key={item.interest}>{item.interest}</option>)}</select><button type="submit" className="filter-apply">Apply filters</button><button type="button" className="filter-clear" onClick={clearFilters}>Clear</button></form>
-          <div className="student-table-wrap"><table className="student-table"><thead><tr><th>STUDENT</th><th>DEPARTMENT & YEAR</th><th>INTERESTS</th><th>LEVEL</th><th>REGISTERED</th></tr></thead><tbody>{students.map(student => <tr key={student._id}><td><strong>{student.name}</strong><span>{student.email}</span><span className="student-phone">{student.countryCode} {student.whatsapp}</span></td><td><strong>{student.department}</strong><span>{student.year}</span></td><td><div className="student-tags">{[...(student.interests || []), student.customInterest].filter(Boolean).map(interest => <span key={interest}>{interest}</span>)}</div></td><td><span className={`skill-badge skill-${student.skill?.toLowerCase()}`}>{student.skill}</span></td><td className="registered-date">{student.createdAt ? new Date(student.createdAt).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' }) : '—'}</td></tr>)}</tbody></table>{!students.length && <div className="student-empty">{loading ? 'Loading registrations…' : pagination.total ? 'No registrations match these filters.' : 'No registrations yet. Student responses will appear here.'}</div>}</div>
+          <div className="student-table-wrap"><table className="student-table"><thead><tr><th>STUDENT</th><th>DEPARTMENT & YEAR</th><th>INTERESTS</th><th>LEVEL</th><th>REGISTERED</th><th><span className="sr-only">ACTIONS</span></th></tr></thead><tbody>{students.map(student => <tr key={student._id}><td><strong>{student.name}</strong><span>{student.email}</span><span className="student-phone">{student.countryCode} {student.whatsapp}</span></td><td><strong>{student.department}</strong><span>{student.year}</span></td><td><div className="student-tags">{[...(student.interests || []), student.customInterest].filter(Boolean).map(interest => <span key={interest}>{interest}</span>)}</div></td><td><span className={`skill-badge skill-${student.skill?.toLowerCase()}`}>{student.skill}</span></td><td className="registered-date">{student.createdAt ? new Date(student.createdAt).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' }) : '—'}</td><td className="student-actions">{pendingDeleteId === student._id
+            ? <div className="delete-confirm" role="group" aria-label={`Confirm deleting ${student.name}`}><span>Delete permanently?</span><button type="button" className="delete-yes" disabled={deletingId === student._id} onClick={() => removeStudent(student._id)}>{deletingId === student._id ? 'Deleting…' : 'Delete'}</button><button type="button" className="delete-no" disabled={deletingId === student._id} onClick={() => setPendingDeleteId('')}>Cancel</button></div>
+            : <button type="button" className="admin-icon-button delete-trigger" aria-label={`Delete registration for ${student.name}`} title="Delete registration" onClick={() => setPendingDeleteId(student._id)}><Trash2 size={14}/></button>}</td></tr>)}</tbody></table>{!students.length && <div className="student-empty">{loading ? 'Loading registrations…' : pagination.total ? 'No registrations match these filters.' : 'No registrations yet. Student responses will appear here.'}</div>}</div>
           <div className="table-footer"><span>Showing {students.length ? ((page - 1) * 25) + 1 : 0}–{Math.min(page * 25, pagination.total)} of {pagination.total} registrations</span><div><button aria-label="Previous page" disabled={page <= 1 || loading} onClick={() => setPage(currentPage => Math.max(1, currentPage - 1))}><ChevronLeft size={16}/></button><span>Page {page} of {Math.max(pagination.pages, 1)}</span><button aria-label="Next page" disabled={page >= pagination.pages || loading} onClick={() => setPage(currentPage => currentPage + 1)}><ChevronRight size={16}/></button></div></div>
         </section>
         <div className="admin-footnote"><ShieldCheck size={14}/> Registration details are restricted to organizers. The access key is cleared when you sign out or close this page.</div>

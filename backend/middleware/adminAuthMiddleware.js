@@ -1,23 +1,18 @@
-const { timingSafeEqual } = require('node:crypto')
-
-function matchesSecret(provided, expected) {
-  const providedBuffer = Buffer.from(provided)
-  const expectedBuffer = Buffer.from(expected)
-  return providedBuffer.length === expectedBuffer.length && timingSafeEqual(providedBuffer, expectedBuffer)
-}
+const { getAdminAccounts, verifySessionToken } = require('../utils/adminSession')
 
 function requireAdmin(req, res, next) {
-  const expected = process.env.ADMIN_API_KEY
-  if (!expected) {
+  if (!getAdminAccounts().length) {
     return res.status(503).json({ message: 'Admin access is not configured.' })
   }
 
   const authorization = req.get('authorization') || ''
   const match = authorization.match(/^Bearer\s+(.+)$/i)
-  if (!match || !matchesSecret(match[1], expected)) {
+  const session = match ? verifySessionToken(match[1].trim()) : null
+  if (!session) {
     return res.status(401).json({ message: 'Admin authorization required.' })
   }
 
+  req.admin = { name: session.name }
   return next()
 }
 

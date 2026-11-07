@@ -1,18 +1,39 @@
 {
   "name": "backend",
   "version": "1.0.0",
-  "description": "",
+  "private": true,
+  "description": "REST API for the ByteMonk Student Interest Portal: registrations, organizer sign-in, analytics, export and deletion.",
+  "keywords": [
+    "bytemonk",
+    "express",
+    "mongodb",
+    "mongoose",
+    "api"
+  ],
+  "license": "MIT",
+  "author": "ByteMonk",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/deepaksharmapw3-blip/bytemonk.git",
+    "directory": "backend"
+  },
+  "bugs": {
+    "url": "https://github.com/deepaksharmapw3-blip/bytemonk/issues"
+  },
+  "homepage": "https://github.com/deepaksharmapw3-blip/bytemonk/tree/main/backend#readme",
   "main": "server.js",
+  "type": "commonjs",
+  "engines": {
+    "node": ">=20.19.0"
+  },
   "scripts": {
     "start": "node server.js",
+    "setup:env": "node scripts/setup-env.js",
+    "secret": "node scripts/setup-env.js --print-secret",
     "dev": "nodemon server.js",
     "test": "node --test",
     "test:atlas": "node --test test/atlas.integration.test.js"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
-  "type": "commonjs",
   "dependencies": {
     "cors": "^2.8.6",
     "dotenv": "^18.0.9",
