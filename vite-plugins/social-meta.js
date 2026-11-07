@@ -24,12 +24,12 @@ export function socialMetaTags(siteUrl) {
   const meta = (attrs) => ({ tag: 'meta', attrs, injectTo: 'head' })
   if (!siteUrl) return [meta({ name: 'twitter:card', content: 'summary' })]
 
-  const image = `${siteUrl}/og-image.png`
+  const image = `${siteUrl}/og-image-official.png`
   return [
     meta({ property: 'og:image', content: image }),
-    meta({ property: 'og:image:width', content: '1200' }),
-    meta({ property: 'og:image:height', content: '630' }),
-    meta({ property: 'og:image:alt', content: 'ByteMonk Student Interest Portal: what do you want to learn next?' }),
+    meta({ property: 'og:image:width', content: '1731' }),
+    meta({ property: 'og:image:height', content: '909' }),
+    meta({ property: 'og:image:alt', content: 'Official ByteMonk logo and Student Interest Portal preview' }),
     meta({ name: 'twitter:card', content: 'summary_large_image' }),
     meta({ name: 'twitter:image', content: image }),
   ]

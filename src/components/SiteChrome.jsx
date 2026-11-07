@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom'
 import { ArrowUpRight, Menu, X } from 'lucide-react'
 
 export function Brand({ light = false }) {
-  return <Link to="/" className={`brand ${light ? 'brand-light' : ''}`} aria-label="ByteMonk home"><span className="brand-mark"><span /><span /><span /><span /></span><span className="brand-word">byte<span>monk</span><i>.</i></span></Link>
+  return <Link to="/" className={`brand ${light ? 'brand-light' : ''}`} aria-label="ByteMonk home"><span className="brand-mark" aria-hidden="true"/><span className="brand-word">BYTEMONK</span></Link>
 }
 
 export function SiteHeader() {

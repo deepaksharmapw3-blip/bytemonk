@@ -88,42 +88,23 @@ button {
 }
 
 .brand-mark {
-  width: 30px;
-  height: 30px;
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 3px;
-  transform: rotate(-8deg);
-}
-
-.brand-mark span {
-  border-radius: 3px;
-  background: linear-gradient(145deg, #b4a5ff, #7166ff);
-}
-
-.brand-mark span:nth-child(2) {
-  opacity: .64;
-  transform: translateY(3px);
-}
-
-.brand-mark span:nth-child(3) {
-  opacity: .78;
-  transform: translateY(-3px);
+  width: 36px;
+  height: 36px;
+  flex: 0 0 36px;
+  overflow: hidden;
+  border: 1px solid #153f49;
+  border-radius: 9px;
+  background-color: #02040a;
+  background-image: url('/bytemonk-official-logo.jpg');
+  background-position: center top;
+  background-repeat: no-repeat;
+  background-size: 136% auto;
 }
 
 .brand-word {
-  font: 800 19px/1 Manrope, sans-serif;
-  letter-spacing: -.8px;
-  color: #f5f4ff;
-}
-
-.brand-word>span {
-  color: #aaa4c5;
-}
-
-.brand-word i {
-  color: #a394ff;
-  font-style: normal;
+  font: 800 15px/1 Manrope, sans-serif;
+  letter-spacing: .075em;
+  color: #12d5e2;
 }
 
 .nav-links {
@@ -924,8 +905,10 @@ button {
 }
 
 .brand-light .brand-mark {
-  width: 25px;
-  height: 25px;
+  width: 29px;
+  height: 29px;
+  flex-basis: 29px;
+  border-radius: 7px;
 }
 
 .footer-inner>p {
@@ -2061,11 +2044,12 @@ button {
     font-size: 9px;
   }
   .brand-light .brand-word {
-    font-size: 14px;
+    font-size: 13px;
   }
   .brand-light .brand-mark {
-    width: 22px;
-    height: 22px;
+    width: 25px;
+    height: 25px;
+    flex-basis: 25px;
   }
   .register-page {
     padding: 33px 20px 65px;
