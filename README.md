@@ -7,7 +7,7 @@ A responsive student interest portal for collecting workshop preferences and hel
 - Student registration with client and server-side validation.
 - Duplicate email prevention in MongoDB.
 - Organizer dashboard with analytics, search, filters, and CSV export.
-- Organizer sign-in with per-organizer keys, short-lived sessions, and lockout after repeated failed attempts.
+- Organizer sign-in with per-organizer keys, authenticator codes, short-lived revocable sessions, and shared Redis-backed lockout in production.
 - Branded favicon, link-preview (Open Graph) tags, and a proper 404 page. Set `VITE_SITE_URL` when deploying so shared links show a preview image.
 - Privacy policy page linked from the consent checkbox and footer. Set `VITE_CONTACT_EMAIL` so students can reach you for data requests.
 - Organizers can permanently delete a registration from the dashboard (search by email, then delete) to honor deletion requests.

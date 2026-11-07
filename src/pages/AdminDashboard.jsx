@@ -22,8 +22,8 @@ function EmptyChart({ children = 'Registration data will appear here as students
   return <div className="admin-empty-chart"><BarChart3 size={20}/><span>{children}</span></div>
 }
 
-function LoginGate({ value, onChange, onSubmit, error, loading }) {
-  return <div className="admin-gate-wrap"><form className="admin-gate" onSubmit={onSubmit}><div className="admin-gate-icon"><KeyRound size={22}/></div><span className="admin-overline">BYTE MONK · ORGANIZERS</span><h1>Good to see you.</h1><p>Enter your organizer access key to review registrations and community trends.</p>{error && <div className="admin-alert" role="alert">{error}</div>}<label htmlFor="admin-key">Admin access key</label><input id="admin-key" type="password" autoComplete="current-password" value={value} onChange={event => onChange(event.target.value)} placeholder="Paste your private admin key" required/><button type="submit" className="button-primary" disabled={loading}>{loading ? <><span className="spinner"/>Verifying access…</> : <>Open dashboard <ArrowDownToLine size={16}/></>}</button><span className="admin-gate-note"><ShieldCheck size={14}/> Your key is sent once to sign in. Only a short-lived session is kept in memory.</span></form></div>
+function LoginGate({ value, onChange, code, onCodeChange, onSubmit, error, loading }) {
+  return <div className="admin-gate-wrap"><form className="admin-gate" onSubmit={onSubmit}><div className="admin-gate-icon"><KeyRound size={22}/></div><span className="admin-overline">BYTE MONK · ORGANIZERS</span><h1>Good to see you.</h1><p>Enter your organizer key and current authenticator code to review registrations and community trends.</p>{error && <div className="admin-alert" role="alert">{error}</div>}<label htmlFor="admin-key">Admin access key</label><input id="admin-key" type="password" autoComplete="current-password" value={value} onChange={event => onChange(event.target.value)} placeholder="Paste your private admin key" required/><label htmlFor="admin-code">Authenticator code</label><input id="admin-code" type="text" inputMode="numeric" autoComplete="one-time-code" pattern="[0-9]{6}" maxLength={6} value={code} onChange={event => onCodeChange(event.target.value.replace(/\D/g, '').slice(0, 6))} placeholder="6-digit code" aria-describedby="admin-code-hint"/><span id="admin-code-hint" className="admin-gate-note">Required in production. Use the code from your authenticator app.</span><button type="submit" className="button-primary" disabled={loading}>{loading ? <><span className="spinner"/>Verifying access…</> : <>Open dashboard <ArrowDownToLine size={16}/></>}</button><span className="admin-gate-note"><ShieldCheck size={14}/> Your credentials are exchanged once. Only a short-lived session is kept in memory.</span></form></div>
 }
 
 function SkillMix({ levels = [], total = 0 }) {
@@ -33,6 +33,7 @@ function SkillMix({ levels = [], total = 0 }) {
 
 function AdminDashboard() {
   const [keyInput, setKeyInput] = useState('')
+  const [totpCode, setTotpCode] = useState('')
   const [adminToken, setAdminToken] = useState('')
   const [signingIn, setSigningIn] = useState(false)
   const [pendingDeleteId, setPendingDeleteId] = useState('')
@@ -102,12 +103,13 @@ function AdminDashboard() {
     setAnalytics(null)
     setSigningIn(true)
     try {
-      const { token } = await adminLogin(key)
+      const { token } = await adminLogin(key, totpCode)
       setKeyInput('')
+      setTotpCode('')
       setAdminToken(token)
     } catch (loginError) {
       const status = loginError.response?.status
-      if (status === 401) setAuthError('That key was not accepted.')
+      if (status === 401) setAuthError('The key or authenticator code was not accepted.')
       else if (status === 429) {
         const seconds = Number(loginError.response?.data?.retryAfterSeconds)
         const minutes = Number.isFinite(seconds) && seconds > 0 ? Math.ceil(seconds / 60) : null
@@ -196,7 +198,7 @@ function AdminDashboard() {
   }
 
   return <><SiteHeader/><main className="admin-page">
-    {!adminToken ? <LoginGate value={keyInput} onChange={setKeyInput} onSubmit={handleLogin} error={authError} loading={signingIn}/> : <div className="admin-shell">
+    {!adminToken ? <LoginGate value={keyInput} onChange={setKeyInput} code={totpCode} onCodeChange={setTotpCode} onSubmit={handleLogin} error={authError} loading={signingIn}/> : <div className="admin-shell">
       <div className="admin-toolbar"><div><span className="admin-overline"><span className="admin-live-dot"/> ORGANIZER CONSOLE</span><h1>Community overview</h1><p>Student interest, at a glance.</p></div><div className="admin-toolbar-actions"><span className="admin-secure-label"><ShieldCheck size={14}/> Protected workspace</span><button className="admin-icon-button" onClick={refresh} aria-label="Refresh dashboard" title="Refresh"><RefreshCw size={16}/></button><button className="admin-logout" onClick={logout}><LogOut size={15}/> Sign out</button></div></div>
       {error && <div className="admin-alert" role="alert">{error}</div>}
       {loading && !analytics ? <div className="admin-loading"><span className="spinner"/>Loading your dashboard…</div> : <>

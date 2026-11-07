@@ -2,8 +2,8 @@ import axios from 'axios'
 
 const apiBase = import.meta.env.VITE_API_URL || 'http://localhost:5000/api'
 
-export async function adminLogin(key) {
-  const { data } = await axios.post(`${apiBase}/admin/login`, { key })
+export async function adminLogin(key, code) {
+  const { data } = await axios.post(`${apiBase}/admin/login`, { key, code })
   return data
 }
 

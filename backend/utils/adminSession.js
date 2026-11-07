@@ -1,4 +1,5 @@
 const { createHash, createHmac, randomBytes, timingSafeEqual } = require('node:crypto')
+const { decodeBase32, verifyTotp } = require('./totp')
 
 const MIN_KEY_LENGTH = 16
 const MIN_SECRET_LENGTH = 32
@@ -39,6 +40,31 @@ function getAdminAccounts(env = process.env) {
   return accounts
 }
 
+function getTotpSecret(name, env = process.env) {
+  const entry = (env.ADMIN_TOTP_SECRETS || '').split(',').map(value => value.trim()).find(value => {
+    const separator = value.indexOf(':')
+    return separator > 0 && value.slice(0, separator).trim() === name
+  })
+  if (!entry) return null
+  const secret = entry.slice(entry.indexOf(':') + 1).trim().toUpperCase()
+  const decoded = decodeBase32(secret)
+  return decoded && decoded.length >= 16 ? secret : null
+}
+
+function adminMfaProblem(env = process.env) {
+  if (env.ADMIN_API_KEY?.trim()) {
+    return 'ADMIN_API_KEYS must contain individual organizer keys; remove the shared ADMIN_API_KEY from production.'
+  }
+  const accounts = getAdminAccounts(env)
+  if (!accounts.length) return 'ADMIN_API_KEYS must contain at least one valid named organizer key in production.'
+  const shortKeys = accounts.filter(account => account.key.length < 32).map(account => account.name)
+  if (shortKeys.length) return `ADMIN_API_KEYS values must be at least 32 characters in production (${shortKeys.join(', ')}). Generate a different random key per organizer.`
+  const missing = accounts.filter(account => !getTotpSecret(account.name, env)).map(account => account.name)
+  return missing.length
+    ? `ADMIN_TOTP_SECRETS must include a valid authenticator secret for every organizer (${missing.join(', ')}). Run "npm run secret:totp" in backend/.`
+    : null
+}
+
 function adminConfigWarnings(env = process.env) {
   const warnings = []
   const configured = (env.ADMIN_API_KEYS || '').split(',').filter(entry => entry.trim()).length + (env.ADMIN_API_KEY?.trim() ? 1 : 0)
@@ -47,6 +73,10 @@ function adminConfigWarnings(env = process.env) {
   else if (usable < configured) warnings.push(`Some admin keys were ignored because they are shorter than ${MIN_KEY_LENGTH} characters, still contain placeholder text, or are badly formatted.`)
   const secretProblem = sessionSecretProblem(env)
   if (secretProblem) warnings.push(`${secretProblem} Until then, admin sessions end whenever the server restarts.`)
+  if (env.NODE_ENV === 'production' && !env.ADMIN_API_KEY?.trim()) {
+    const mfaProblem = adminMfaProblem(env)
+    if (mfaProblem) warnings.push(mfaProblem)
+  }
   if (env.NODE_ENV === 'production' && !env.TRUST_PROXY?.trim()) warnings.push('TRUST_PROXY is not set. Behind a hosting proxy (Render, Railway, Heroku) set TRUST_PROXY=1, or rate limits and login lockout will treat all visitors as one.')
   return warnings
 }
@@ -60,6 +90,14 @@ function verifyAdminKey(provided, env = process.env) {
     if (timingSafeEqual(providedHash, sha256(account.key)) && !matched) matched = account.name
   }
   return matched
+}
+
+function verifyAdminCredentials(providedKey, providedCode, env = process.env, now = Date.now()) {
+  const name = verifyAdminKey(providedKey, env)
+  if (!name) return null
+  const secret = getTotpSecret(name, env)
+  if (secret) return verifyTotp(providedCode, secret, now) ? name : null
+  return env.NODE_ENV === 'production' ? null : name
 }
 
 /** The configured signing secret, or null if it is missing, too short, or still the .env.example placeholder. */
@@ -91,7 +129,9 @@ function sign(payload, env) {
 
 function issueSessionToken(name, env = process.env, now = Date.now()) {
   const expiresAt = now + sessionTtlMs(env)
-  const payload = Buffer.from(JSON.stringify({ sub: name, iat: now, exp: expiresAt })).toString('base64url')
+  const account = getAdminAccounts(env).find(candidate => candidate.name === name)
+  const keyId = account ? sha256(account.key).toString('hex') : null
+  const payload = Buffer.from(JSON.stringify({ sub: name, kid: keyId, iat: now, exp: expiresAt })).toString('base64url')
   return { token: `${payload}.${sign(payload, env)}`, expiresAt }
 }
 
@@ -107,13 +147,21 @@ function verifySessionToken(token, env = process.env, now = Date.now()) {
   try {
     const data = JSON.parse(Buffer.from(payload, 'base64url').toString('utf8'))
     if (typeof data.sub !== 'string' || !Number.isFinite(data.exp) || data.exp <= now) return null
-    return { name: data.sub, expiresAt: data.exp }
+    return { name: data.sub, keyId: typeof data.kid === 'string' ? data.kid : null, expiresAt: data.exp }
   } catch {
     return null
   }
 }
 
-// ---- Failed-login lockout (per client IP, in memory) ----
+/** A key rotation or account removal invalidates that organizer's existing sessions. */
+function isSessionAccountActive(session, env = process.env) {
+  if (!session) return false
+  if (typeof session.keyId !== 'string') return env.NODE_ENV !== 'production'
+  const account = getAdminAccounts(env).find(candidate => candidate.name === session.name)
+  return Boolean(account && sha256(account.key).toString('hex') === session.keyId)
+}
+
+// ---- Local-development fallback lockout (production uses the Redis limiter) ----
 const attempts = new Map()
 
 function lockoutSecondsRemaining(clientId, now = Date.now()) {
@@ -145,14 +193,18 @@ function resetLoginTracking() {
 
 module.exports = {
   MAX_FAILURES,
+  adminMfaProblem,
   adminConfigWarnings,
   clearFailedLogins,
   getAdminAccounts,
+  getTotpSecret,
+  isSessionAccountActive,
   issueSessionToken,
   lockoutSecondsRemaining,
   recordFailedLogin,
   resetLoginTracking,
   sessionSecretProblem,
   verifyAdminKey,
+  verifyAdminCredentials,
   verifySessionToken,
 }

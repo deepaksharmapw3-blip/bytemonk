@@ -1,4 +1,4 @@
-const { getAdminAccounts, verifySessionToken } = require('../utils/adminSession')
+const { getAdminAccounts, isSessionAccountActive, verifySessionToken } = require('../utils/adminSession')
 
 function requireAdmin(req, res, next) {
   if (!getAdminAccounts().length) {
@@ -8,7 +8,7 @@ function requireAdmin(req, res, next) {
   const authorization = req.get('authorization') || ''
   const match = authorization.match(/^Bearer\s+(.+)$/i)
   const session = match ? verifySessionToken(match[1].trim()) : null
-  if (!session) {
+  if (!session || !isSessionAccountActive(session)) {
     return res.status(401).json({ message: 'Admin authorization required.' })
   }
 
